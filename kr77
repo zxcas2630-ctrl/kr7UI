@@ -1,5 +1,5 @@
--- Kr7Library.lua
--- Load with: local Kr7 = loadstring(game:HttpGet("YOUR_RAW_URL"))()
+-- Kr7 UI Library
+-- Load with: local Kr7 = loadstring(game:HttpGet("RAW_URL"))()
 
 return function(config)
     config = config or {}
@@ -651,14 +651,13 @@ return function(config)
 
     function Window.new()
         local self = setmetatable({}, Window)
-        self.Tabs = {}          -- name -> tab data
-        self.TabNames = {}      -- ordered list
+        self.Tabs = {}
+        self.TabNames = {}
         self.CurrentTab = nil
         self.SearchBox = SearchBox
         self.Scroll = Scroll
         self.ContentTitle = ContentTitle
 
-        -- Search listener
         SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
             self:Search(SearchBox.Text:lower())
         end)
@@ -704,7 +703,7 @@ return function(config)
             Button = button,
             Indicator = indicator,
             Label = label,
-            Elements = {}      -- array of feature tables
+            Elements = {}
         }
 
         self.Tabs[name] = tab
@@ -727,7 +726,6 @@ return function(config)
             end
         end)
 
-        -- If first tab, select it
         if not self.CurrentTab then
             self:SelectTab(name)
         end
@@ -742,7 +740,6 @@ return function(config)
         self.CurrentTab = name
         SearchBox.Text = ""
 
-        -- Update sidebar visuals
         for t, data in pairs(self.Tabs) do
             local selected = (t == name)
             data.Indicator.Visible = selected
@@ -760,7 +757,6 @@ return function(config)
         local tab = self.Tabs[name]
         if not tab then return end
 
-        -- Clear scroll (keep only UIListLayout and UIPadding)
         for _, child in ipairs(Scroll:GetChildren()) do
             if child:IsA("GuiObject") and not child:IsA("UIListLayout") and not child:IsA("UIPadding") then
                 child:Destroy()
@@ -780,7 +776,6 @@ return function(config)
     end
 
     function Window:Search(query)
-        -- Clear scroll
         for _, child in ipairs(Scroll:GetChildren()) do
             if child:IsA("GuiObject") and not child:IsA("UIListLayout") and not child:IsA("UIPadding") then
                 child:Destroy()
@@ -801,7 +796,6 @@ return function(config)
             for _, feature in ipairs(tab.Elements) do
                 if feature.label:lower():find(query, 1, true) then
                     found = true
-                    -- Show source tab name
                     New("TextLabel", {
                         Size = UDim2.new(1, -5, 0, 16),
                         BackgroundTransparency = 1,
@@ -811,7 +805,6 @@ return function(config)
                         TextColor3 = C.Sub,
                         TextXAlignment = Enum.TextXAlignment.Left
                     }, Scroll)
-                    -- Build the feature
                     if feature.type == "button" then BuildButton(feature)
                     elseif feature.type == "toggle" then BuildToggle(feature)
                     elseif feature.type == "slider" then BuildSlider(feature)
@@ -840,9 +833,6 @@ return function(config)
 
     function Tab:AddButton(label, desc, callback)
         table.insert(self.Elements, { type = "button", label = label, desc = desc, callback = callback })
-        -- Re-render if this tab is currently selected
-        local win = getmetatable(self).__index -- hacky but works; better to store window ref
-        -- We'll store a reference to the window in the tab
         if self._Window and self._Window.CurrentTab == self.Name then
             self._Window:RenderTab(self.Name)
         end
@@ -876,7 +866,7 @@ return function(config)
         end
     end
 
-    -- Modify Window:CreateTab to set _Window reference in tab
+    -- Patch CreateTab to set _Window reference
     local originalCreateTab = Window.CreateTab
     function Window:CreateTab(name)
         local tab = originalCreateTab(self, name)
@@ -885,7 +875,6 @@ return function(config)
         return tab
     end
 
-    -- Also ensure existing tabs get the metatable (if any)
     for _, tab in pairs(self.Tabs) do
         setmetatable(tab, Tab)
         tab._Window = self
