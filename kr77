@@ -1,36 +1,40 @@
--- Kr7 UI Library
--- Load with: local Kr7 = loadstring(game:HttpGet("RAW_URL"))()
+-- Kr7 UI Library v2.0
+-- Usage:
+--   local Kr7 = loadstring(game:HttpGet("RAW_URL"))({ Title = "My UI", Accent = Color3.fromRGB(255,100,100) })
+--   local tab = Kr7:CreateTab("Main")
+--   tab:AddButton("Click", "Description", function() print("Clicked") end)
 
 return function(config)
     config = config or {}
-    local VERSION = "v1.0.1"
+    local VERSION = "v2.0.0"
+
+    -- Theme (with overrides)
+    local C = {
+        Background = config.Background or Color3.fromRGB(22, 21, 39),
+        Top = config.Top or Color3.fromRGB(27, 26, 46),
+        Panel = config.Panel or Color3.fromRGB(30, 29, 50),
+        Panel2 = config.Panel2 or Color3.fromRGB(36, 34, 58),
+        Hover = config.Hover or Color3.fromRGB(44, 42, 70),
+        Selected = config.Selected or Color3.fromRGB(48, 44, 73),
+        Border = config.Border or Color3.fromRGB(61, 58, 88),
+        Text = config.Text or Color3.fromRGB(232, 231, 240),
+        Sub = config.Sub or Color3.fromRGB(145, 142, 161),
+        Muted = config.Muted or Color3.fromRGB(105, 102, 120),
+        Accent = config.Accent or Color3.fromRGB(0, 220, 170),
+        AccentDark = config.AccentDark or Color3.fromRGB(0, 155, 130),
+    }
 
     local MIN_SIZE = config.MinSize or Vector2.new(600, 380)
     local MAX_SIZE = config.MaxSize or Vector2.new(1000, 700)
     local DEFAULT_SIZE = config.DefaultSize or Vector2.new(720, 470)
     local TITLE = config.Title or "Kr7"
 
-    local C = {
-        Background = Color3.fromRGB(22, 21, 39),
-        Top = Color3.fromRGB(27, 26, 46),
-        Panel = Color3.fromRGB(30, 29, 50),
-        Panel2 = Color3.fromRGB(36, 34, 58),
-        Hover = Color3.fromRGB(44, 42, 70),
-        Selected = Color3.fromRGB(48, 44, 73),
-        Border = Color3.fromRGB(61, 58, 88),
-        Text = Color3.fromRGB(232, 231, 240),
-        Sub = Color3.fromRGB(145, 142, 161),
-        Muted = Color3.fromRGB(105, 102, 120),
-        Accent = Color3.fromRGB(0, 220, 170),
-        AccentDark = Color3.fromRGB(0, 155, 130)
-    }
-
     local UIS = game:GetService("UserInputService")
     local TS = game:GetService("TweenService")
     local Players = game:GetService("Players")
     local Player = Players.LocalPlayer
 
-    -- ===== HELPERS =====
+    -- Helpers
     local function New(class, props, parent)
         local obj = Instance.new(class)
         for k, v in pairs(props or {}) do obj[k] = v end
@@ -54,7 +58,7 @@ return function(config)
         TS:Create(obj, TweenInfo.new(duration or .18, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), props):Play()
     end
 
-    -- ===== CREATE GUI =====
+    -- Build GUI
     local Gui = New("ScreenGui", {
         Name = "Kr7",
         ResetOnSpawn = false,
@@ -87,7 +91,7 @@ return function(config)
         BorderSizePixel = 0
     }, Clip)
 
-    local TitleLabel = New("TextLabel", {
+    New("TextLabel", {
         Size = UDim2.fromOffset(50, 56),
         Position = UDim2.fromOffset(17, 0),
         BackgroundTransparency = 1,
@@ -141,7 +145,7 @@ return function(config)
         Size = UDim2.new(1, -40, 1, 0),
         Position = UDim2.fromOffset(36, 0),
         BackgroundTransparency = 1,
-        PlaceholderText = "Search features",
+        PlaceholderText = "Search features...",
         PlaceholderColor3 = C.Sub,
         Text = "",
         TextColor3 = C.Text,
@@ -203,7 +207,7 @@ return function(config)
         Position = UDim2.fromOffset(10, 43),
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
-        ScrollBarThickness = 3,
+        ScrollBarThickness = 4,
         ScrollBarImageColor3 = C.Accent,
         AutomaticCanvasSize = Enum.AutomaticSize.Y,
         CanvasSize = UDim2.new()
@@ -219,7 +223,7 @@ return function(config)
         SortOrder = Enum.SortOrder.LayoutOrder
     }, Scroll)
 
-    -- ===== DRAG / RESIZE =====
+    -- Drag / Resize handles (unchanged)
     local Drag = New("TextButton", {
         Size = UDim2.fromOffset(40, 40),
         Position = UDim2.new(1, -44, 0, 8),
@@ -336,6 +340,35 @@ return function(config)
         return frame
     end
 
+    local function BuildLabel(feature)
+        local holder = Base(36)
+        New("TextLabel", {
+            Size = UDim2.new(1, -20, 1, 0),
+            Position = UDim2.fromOffset(10, 0),
+            BackgroundTransparency = 1,
+            Text = feature.label,
+            Font = Enum.Font.Gotham,
+            TextSize = 13,
+            TextColor3 = feature.desc and C.Sub or C.Text,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            TextYAlignment = Enum.TextYAlignment.Center,
+            TextWrapped = true
+        }, holder)
+        if feature.desc then
+            New("TextLabel", {
+                Size = UDim2.new(1, -20, 0, 18),
+                Position = UDim2.fromOffset(10, 18),
+                BackgroundTransparency = 1,
+                Text = feature.desc,
+                Font = Enum.Font.Gotham,
+                TextSize = 10,
+                TextColor3 = C.Muted,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                TextYAlignment = Enum.TextYAlignment.Top
+            }, holder)
+        end
+    end
+
     local function BuildButton(feature)
         local holder = Base(54)
         local btn = New("TextButton", {
@@ -373,7 +406,7 @@ return function(config)
             Size = UDim2.new(1, -80, 0, 18),
             Position = UDim2.fromOffset(12, 29),
             BackgroundTransparency = 1,
-            Text = feature.desc,
+            Text = feature.desc or "",
             Font = Enum.Font.Gotham,
             TextSize = 10,
             TextColor3 = C.Sub,
@@ -397,7 +430,13 @@ return function(config)
         }, toggle)
         Round(dot, 20)
 
-        local enabled = false
+        local enabled = feature.default or false
+        if enabled then
+            toggle.BackgroundColor3 = C.AccentDark
+            dot.Position = UDim2.new(1, -18, 0, 3)
+            dot.BackgroundColor3 = C.Accent
+        end
+
         toggle.MouseButton1Click:Connect(function()
             enabled = not enabled
             Tween(toggle, { BackgroundColor3 = enabled and C.AccentDark or C.Panel2 })
@@ -507,7 +546,7 @@ return function(config)
             Size = UDim2.new(1, -160, 0, 16),
             Position = UDim2.fromOffset(12, 30),
             BackgroundTransparency = 1,
-            Text = feature.desc,
+            Text = feature.desc or "",
             Font = Enum.Font.Gotham,
             TextSize = 10,
             TextColor3 = C.Sub,
@@ -613,7 +652,7 @@ return function(config)
             Size = UDim2.new(1, -190, 0, 17),
             Position = UDim2.fromOffset(12, 30),
             BackgroundTransparency = 1,
-            Text = feature.desc,
+            Text = feature.desc or "",
             Font = Enum.Font.Gotham,
             TextSize = 10,
             TextColor3 = C.Sub,
@@ -645,6 +684,73 @@ return function(config)
         end)
     end
 
+    local function BuildKeybind(feature)
+        local holder = Base(58)
+        New("TextLabel", {
+            Size = UDim2.new(1, -130, 0, 22),
+            Position = UDim2.fromOffset(12, 6),
+            BackgroundTransparency = 1,
+            Text = feature.label,
+            Font = Enum.Font.GothamMedium,
+            TextSize = 13,
+            TextColor3 = C.Text,
+            TextXAlignment = Enum.TextXAlignment.Left
+        }, holder)
+        New("TextLabel", {
+            Size = UDim2.new(1, -130, 0, 18),
+            Position = UDim2.fromOffset(12, 29),
+            BackgroundTransparency = 1,
+            Text = feature.desc or "",
+            Font = Enum.Font.Gotham,
+            TextSize = 10,
+            TextColor3 = C.Sub,
+            TextXAlignment = Enum.TextXAlignment.Left
+        }, holder)
+
+        local keyButton = New("TextButton", {
+            Size = UDim2.fromOffset(100, 32),
+            Position = UDim2.new(1, -112, 0, 12),
+            BackgroundColor3 = C.Panel2,
+            BorderSizePixel = 0,
+            Text = feature.default and tostring(feature.default) or "None",
+            Font = Enum.Font.GothamMedium,
+            TextSize = 12,
+            TextColor3 = C.Text,
+            AutoButtonColor = false
+        }, holder)
+        Round(keyButton, 7)
+        Stroke(keyButton)
+
+        local listening = false
+        keyButton.MouseButton1Click:Connect(function()
+            listening = not listening
+            if listening then
+                keyButton.Text = "Press a key..."
+                Tween(keyButton, { BackgroundColor3 = C.Hover })
+            else
+                keyButton.Text = feature.default and tostring(feature.default) or "None"
+                Tween(keyButton, { BackgroundColor3 = C.Panel2 })
+            end
+        end)
+
+        UIS.InputBegan:Connect(function(input, processed)
+            if not listening or processed then return end
+            if input.UserInputType == Enum.UserInputType.Keyboard then
+                local key = input.KeyCode
+                if key then
+                    listening = false
+                    feature.default = key
+                    keyButton.Text = tostring(key)
+                    Tween(keyButton, { BackgroundColor3 = C.Panel2 })
+                    if feature.callback then feature.callback(key) end
+                end
+            end
+        end)
+
+        -- Also allow mouse buttons?
+        -- But keep it simple.
+    end
+
     -- ===== WINDOW OBJECT =====
     local Window = {}
     Window.__index = Window
@@ -661,6 +767,13 @@ return function(config)
         SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
             self:Search(SearchBox.Text:lower())
         end)
+
+        -- Create a default "Home" tab with welcome content
+        local homeTab = self:CreateTab("Home")
+        homeTab:AddLabel("Welcome to " .. TITLE, "Version " .. VERSION)
+        homeTab:AddLabel("Press Right Shift to toggle this interface.")
+        homeTab:AddLabel("Use the search bar above to find features.")
+        homeTab:AddLabel("Add your own tabs and features using the API.")
 
         return self
     end
@@ -703,8 +816,10 @@ return function(config)
             Button = button,
             Indicator = indicator,
             Label = label,
-            Elements = {}
+            Elements = {},
+            _Window = self  -- direct reference
         }
+        setmetatable(tab, Tab)
 
         self.Tabs[name] = tab
         table.insert(self.TabNames, name)
@@ -757,6 +872,7 @@ return function(config)
         local tab = self.Tabs[name]
         if not tab then return end
 
+        -- Clear scroll (keep layout/padding)
         for _, child in ipairs(Scroll:GetChildren()) do
             if child:IsA("GuiObject") and not child:IsA("UIListLayout") and not child:IsA("UIPadding") then
                 child:Destroy()
@@ -766,11 +882,13 @@ return function(config)
         self.ContentTitle.Text = name
 
         for _, feature in ipairs(tab.Elements) do
-            if feature.type == "button" then BuildButton(feature)
+            if feature.type == "label" then BuildLabel(feature)
+            elseif feature.type == "button" then BuildButton(feature)
             elseif feature.type == "toggle" then BuildToggle(feature)
             elseif feature.type == "slider" then BuildSlider(feature)
             elseif feature.type == "dropdown" then BuildDropdown(feature)
             elseif feature.type == "textbox" then BuildTextbox(feature)
+            elseif feature.type == "keybind" then BuildKeybind(feature)
             end
         end
     end
@@ -796,20 +914,24 @@ return function(config)
             for _, feature in ipairs(tab.Elements) do
                 if feature.label:lower():find(query, 1, true) then
                     found = true
+                    -- Show source tab
                     New("TextLabel", {
                         Size = UDim2.new(1, -5, 0, 16),
                         BackgroundTransparency = 1,
-                        Text = tabName,
+                        Text = "[" .. tabName .. "]",
                         Font = Enum.Font.GothamMedium,
                         TextSize = 10,
-                        TextColor3 = C.Sub,
+                        TextColor3 = C.Accent,
                         TextXAlignment = Enum.TextXAlignment.Left
                     }, Scroll)
-                    if feature.type == "button" then BuildButton(feature)
+                    -- Build the feature (but we only want to show it; we don't need interactivity? We'll keep it interactive)
+                    if feature.type == "label" then BuildLabel(feature)
+                    elseif feature.type == "button" then BuildButton(feature)
                     elseif feature.type == "toggle" then BuildToggle(feature)
                     elseif feature.type == "slider" then BuildSlider(feature)
                     elseif feature.type == "dropdown" then BuildDropdown(feature)
                     elseif feature.type == "textbox" then BuildTextbox(feature)
+                    elseif feature.type == "keybind" then BuildKeybind(feature)
                     end
                 end
             end
@@ -831,6 +953,13 @@ return function(config)
     local Tab = {}
     Tab.__index = Tab
 
+    function Tab:AddLabel(label, desc)
+        table.insert(self.Elements, { type = "label", label = label, desc = desc })
+        if self._Window and self._Window.CurrentTab == self.Name then
+            self._Window:RenderTab(self.Name)
+        end
+    end
+
     function Tab:AddButton(label, desc, callback)
         table.insert(self.Elements, { type = "button", label = label, desc = desc, callback = callback })
         if self._Window and self._Window.CurrentTab == self.Name then
@@ -838,8 +967,8 @@ return function(config)
         end
     end
 
-    function Tab:AddToggle(label, desc, callback)
-        table.insert(self.Elements, { type = "toggle", label = label, desc = desc, callback = callback })
+    function Tab:AddToggle(label, desc, default, callback)
+        table.insert(self.Elements, { type = "toggle", label = label, desc = desc, default = default, callback = callback })
         if self._Window and self._Window.CurrentTab == self.Name then
             self._Window:RenderTab(self.Name)
         end
@@ -866,20 +995,13 @@ return function(config)
         end
     end
 
-    -- Patch CreateTab to set _Window reference
-    local originalCreateTab = Window.CreateTab
-    function Window:CreateTab(name)
-        local tab = originalCreateTab(self, name)
-        tab._Window = self
-        setmetatable(tab, Tab)
-        return tab
+    function Tab:AddKeybind(label, desc, default, callback)
+        table.insert(self.Elements, { type = "keybind", label = label, desc = desc, default = default, callback = callback })
+        if self._Window and self._Window.CurrentTab == self.Name then
+            self._Window:RenderTab(self.Name)
+        end
     end
 
-    for _, tab in pairs(self.Tabs) do
-        setmetatable(tab, Tab)
-        tab._Window = self
-    end
-
-    -- ===== RETURN =====
+    -- ===== CREATE WINDOW =====
     return Window.new()
 end
