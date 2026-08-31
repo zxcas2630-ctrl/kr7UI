@@ -1,0 +1,547 @@
+--// Progressive ESP
+--// FAST VERSION
+--// R6 + R15
+
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local LocalPlayer = Players.LocalPlayer
+
+--==================================================
+-- SETTINGS
+--==================================================
+
+local HIDDEN_COLOR = Color3.fromRGB(255, 20, 147)
+local VISIBLE_COLOR = Color3.fromRGB(0, 170, 255)
+
+-- Reduced from 6x10.
+-- 3x4 = 12 sections per body part.
+local GRID_X = 3
+local GRID_Y = 4
+
+-- Check visibility every frame.
+local VISIBILITY_INTERVAL = 0
+
+-- Number of raycasts allowed per frame.
+-- Increase if you want faster updates and have
+-- enough performance.
+local MAX_RAYCASTS_PER_FRAME = 100
+
+--==================================================
+-- BODY PARTS
+--==================================================
+
+local BODY_PARTS = {
+	["Head"] = true,
+	["Torso"] = true,
+	["Left Arm"] = true,
+	["Right Arm"] = true,
+	["Left Leg"] = true,
+	["Right Leg"] = true,
+
+	["UpperTorso"] = true,
+	["LowerTorso"] = true,
+
+	["LeftUpperArm"] = true,
+	["LeftLowerArm"] = true,
+	["LeftHand"] = true,
+
+	["RightUpperArm"] = true,
+	["RightLowerArm"] = true,
+	["RightHand"] = true,
+
+	["LeftUpperLeg"] = true,
+	["LeftLowerLeg"] = true,
+	["LeftFoot"] = true,
+
+	["RightUpperLeg"] = true,
+	["RightLowerLeg"] = true,
+	["RightFoot"] = true,
+}
+
+--==================================================
+-- GUI
+--==================================================
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "TrippyAvatarVision"
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.ResetOnSpawn = false
+ScreenGui.DisplayOrder = 100
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local Viewport = Instance.new("ViewportFrame")
+Viewport.Name = "AvatarViewport"
+Viewport.Size = UDim2.fromScale(1, 1)
+Viewport.Position = UDim2.fromScale(0, 0)
+Viewport.BackgroundTransparency = 1
+Viewport.BorderSizePixel = 0
+
+Viewport.Ambient = Color3.fromRGB(255, 255, 255)
+Viewport.LightColor = Color3.fromRGB(255, 255, 255)
+Viewport.LightDirection = Vector3.new(-1, -1, -1)
+
+Viewport.Parent = ScreenGui
+
+local ViewportCamera = Instance.new("Camera")
+ViewportCamera.Name = "AvatarCamera"
+ViewportCamera.Parent = Viewport
+Viewport.CurrentCamera = ViewportCamera
+
+local WorldModel = Instance.new("WorldModel")
+WorldModel.Parent = Viewport
+
+--==================================================
+-- STORAGE
+--==================================================
+
+local Avatars = {}
+
+--==================================================
+-- RAYCAST
+--==================================================
+
+local RayParams = RaycastParams.new()
+RayParams.FilterType = Enum.RaycastFilterType.Exclude
+RayParams.IgnoreWater = true
+
+local function isVisible(position, character)
+
+	local camera = workspace.CurrentCamera
+
+	if not camera then
+		return false
+	end
+
+	local origin = camera.CFrame.Position
+	local direction = position - origin
+
+	if direction.Magnitude <= 0.01 then
+		return true
+	end
+
+	-- IMPORTANT:
+	-- Don't exclude the target character.
+	-- We need the ray to actually hit it.
+	RayParams.FilterDescendantsInstances = {
+		LocalPlayer.Character
+	}
+
+	local result = workspace:Raycast(
+		origin,
+		direction,
+		RayParams
+	)
+
+	if not result then
+		return false
+	end
+
+	return result.Instance:IsDescendantOf(character)
+end
+
+--==================================================
+-- CREATE SECTION
+--==================================================
+
+local function createSection(
+	original,
+	model,
+	x,
+	y
+)
+
+	local size = original.Size
+
+	local cellX =
+		size.X / GRID_X
+
+	local cellY =
+		size.Y / GRID_Y
+
+	-- Calculate these once.
+	local offsetX =
+		-size.X / 2
+		+ cellX / 2
+		+ ((x - 1) * cellX)
+
+	local offsetY =
+		-size.Y / 2
+		+ cellY / 2
+		+ ((y - 1) * cellY)
+
+	local section = Instance.new("Part")
+
+	section.Name =
+		original.Name
+		.. "_"
+		.. x
+		.. "_"
+		.. y
+
+	section.Anchored = true
+	section.CanCollide = false
+	section.CanTouch = false
+	section.CanQuery = false
+	section.CastShadow = false
+
+	section.Material = Enum.Material.Neon
+	section.Color = HIDDEN_COLOR
+
+	section.Size = Vector3.new(
+		cellX,
+		cellY,
+		size.Z
+	)
+
+	section.Parent = model
+
+	return {
+		part = section,
+		original = original,
+
+		offsetX = offsetX,
+		offsetY = offsetY,
+
+		cellX = cellX,
+		cellY = cellY,
+
+		worldPosition = nil,
+
+		visible = false,
+	}
+end
+
+--==================================================
+-- CREATE AVATAR
+--==================================================
+
+local function createAvatar(player)
+
+	if player == LocalPlayer then
+		return
+	end
+
+	-- Delete old clone.
+	if Avatars[player] then
+
+		Avatars[player].model:Destroy()
+		Avatars[player] = nil
+
+	end
+
+	local character = player.Character
+
+	if not character then
+		return
+	end
+
+	local model = Instance.new("Model")
+
+	model.Name =
+		player.Name
+		.. "_TrippyAvatar"
+
+	model.Parent = WorldModel
+
+	local sections = {}
+
+	for _, original in ipairs(
+		character:GetDescendants()
+	) do
+
+		if not original:IsA("BasePart") then
+			continue
+		end
+
+		if not BODY_PARTS[original.Name] then
+			continue
+		end
+
+		if original.Name ==
+			"HumanoidRootPart" then
+
+			continue
+		end
+
+		for x = 1, GRID_X do
+
+			for y = 1, GRID_Y do
+
+				table.insert(
+					sections,
+
+					createSection(
+						original,
+						model,
+						x,
+						y
+					)
+				)
+
+			end
+		end
+	end
+
+	Avatars[player] = {
+		model = model,
+		character = character,
+		sections = sections,
+
+		visibilityIndex = 1,
+	}
+end
+
+--==================================================
+-- REMOVE AVATAR
+--==================================================
+
+local function removeAvatar(player)
+
+	local avatar =
+		Avatars[player]
+
+	if not avatar then
+		return
+	end
+
+	if avatar.model then
+		avatar.model:Destroy()
+	end
+
+	Avatars[player] = nil
+end
+
+--==================================================
+-- PLAYER SETUP
+--==================================================
+
+local function setupPlayer(player)
+
+	if player == LocalPlayer then
+		return
+	end
+
+	if player.Character then
+
+		task.defer(function()
+			createAvatar(player)
+		end)
+
+	end
+
+	player.CharacterAdded:Connect(function()
+
+		task.wait(0.2)
+
+		createAvatar(player)
+
+	end)
+
+	player.CharacterRemoving:Connect(function()
+
+		removeAvatar(player)
+
+	end)
+end
+
+for _, player in ipairs(
+	Players:GetPlayers()
+) do
+
+	setupPlayer(player)
+
+end
+
+Players.PlayerAdded:Connect(
+	setupPlayer
+)
+
+Players.PlayerRemoving:Connect(
+	removeAvatar
+)
+
+--==================================================
+-- UPDATE POSITION
+--==================================================
+
+local function updateSection(
+	data,
+	camera
+)
+
+	local original =
+		data.original
+
+	local section =
+		data.part
+
+	if not original
+		or not original.Parent
+		or not section
+		or not section.Parent then
+
+		return
+	end
+
+	-- Exact position of this grid cell.
+	local worldCFrame =
+		original.CFrame
+		* CFrame.new(
+			data.offsetX,
+			data.offsetY,
+			0
+		)
+
+	data.worldPosition =
+		worldCFrame.Position
+
+	-- Camera-relative transform.
+	local relative =
+		camera.CFrame:ToObjectSpace(
+			worldCFrame
+		)
+
+	section.CFrame =
+		ViewportCamera.CFrame
+		* relative
+
+	-- Only update transparency if needed.
+	local transparency =
+		original.Transparency
+
+	if section.Transparency ~=
+		transparency then
+
+		section.Transparency =
+			transparency
+	end
+end
+
+--==================================================
+-- VISIBILITY
+--==================================================
+
+local function updateVisibility(
+	avatar
+)
+
+	local sections =
+		avatar.sections
+
+	local total =
+		#sections
+
+	if total == 0 then
+		return
+	end
+
+	local checked = 0
+
+	while checked <
+		MAX_RAYCASTS_PER_FRAME do
+
+		local index =
+			avatar.visibilityIndex
+
+		if index > total then
+			index = 1
+		end
+
+		local data =
+			sections[index]
+
+		avatar.visibilityIndex =
+			index + 1
+
+		if data
+			and data.worldPosition then
+
+			local visible =
+				isVisible(
+					data.worldPosition,
+					avatar.character
+				)
+
+			if visible ~=
+				data.visible then
+
+				data.visible =
+					visible
+
+				if visible then
+
+					data.part.Color =
+						VISIBLE_COLOR
+
+				else
+
+					data.part.Color =
+						HIDDEN_COLOR
+
+				end
+			end
+		end
+
+		checked += 1
+
+		-- If we have fewer sections than
+		-- the budget, don't loop forever.
+		if checked >= total then
+			break
+		end
+	end
+end
+
+--==================================================
+-- RENDER
+--==================================================
+
+RunService.RenderStepped:Connect(
+	function()
+
+		local camera =
+			workspace.CurrentCamera
+
+		if not camera then
+			return
+		end
+
+		-- Match camera.
+		ViewportCamera.CFrame =
+			camera.CFrame
+
+		ViewportCamera.FieldOfView =
+			camera.FieldOfView
+
+		-- Update every section's position.
+		for _, avatar in pairs(
+			Avatars
+		) do
+
+			for _, data in ipairs(
+				avatar.sections
+			) do
+
+				updateSection(
+					data,
+					camera
+				)
+
+			end
+
+		end
+
+		-- Visibility checks.
+		for _, avatar in pairs(
+			Avatars
+		) do
+
+			updateVisibility(
+				avatar
+			)
+
+		end
+	end
+)
