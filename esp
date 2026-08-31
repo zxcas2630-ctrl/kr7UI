@@ -1,0 +1,236 @@
+--// ESP
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local LocalPlayer = Players.LocalPlayer
+
+--==================================================
+-- GUI
+--==================================================
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "AvatarThroughWalls"
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.ResetOnSpawn = false
+ScreenGui.DisplayOrder = 100
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local Viewport = Instance.new("ViewportFrame")
+Viewport.Name = "AvatarViewport"
+Viewport.Size = UDim2.fromScale(1, 1)
+Viewport.Position = UDim2.fromScale(0, 0)
+Viewport.BackgroundTransparency = 1
+Viewport.BorderSizePixel = 0
+Viewport.Ambient = Color3.fromRGB(200, 200, 200)
+Viewport.LightColor = Color3.fromRGB(255, 255, 255)
+Viewport.LightDirection = Vector3.new(-1, -1, -1)
+Viewport.Parent = ScreenGui
+
+local ViewportCamera = Instance.new("Camera")
+ViewportCamera.Name = "AvatarCamera"
+ViewportCamera.Parent = Viewport
+Viewport.CurrentCamera = ViewportCamera
+
+local WorldModel = Instance.new("WorldModel")
+WorldModel.Parent = Viewport
+
+--==================================================
+-- Storage
+--==================================================
+
+local AvatarClones = {}
+
+--==================================================
+-- Utility
+--==================================================
+
+local function getPath(instance)
+	local path = {}
+
+	while instance and instance.Parent do
+		table.insert(path, 1, instance.Name)
+
+		if instance.Parent == instance:GetService("Workspace") then
+			break
+		end
+
+		instance = instance.Parent
+	end
+
+	return table.concat(path, "/")
+end
+
+local function removeAvatar(player)
+	local clone = AvatarClones[player]
+
+	if clone then
+		clone:Destroy()
+		AvatarClones[player] = nil
+	end
+end
+
+--==================================================
+-- Create viewport avatar
+--==================================================
+
+local function createAvatar(player)
+	if player == LocalPlayer then
+		return
+	end
+
+	removeAvatar(player)
+
+	local character = player.Character
+
+	if not character then
+		return
+	end
+
+	-- Make sure the character can be cloned.
+	local oldArchivable = character.Archivable
+	character.Archivable = true
+
+	local clone = character:Clone()
+
+	character.Archivable = oldArchivable
+
+	if not clone then
+		warn("Unable to clone character:", player.Name)
+		return
+	end
+
+	clone.Name = player.Name .. "_ViewportAvatar"
+
+	-- Remove scripts and disable physics.
+	for _, object in ipairs(clone:GetDescendants()) do
+
+		if object:IsA("Script")
+			or object:IsA("LocalScript")
+			or object:IsA("ModuleScript") then
+
+			object:Destroy()
+
+		elseif object:IsA("BasePart") then
+
+			object.Anchored = true
+			object.CanCollide = false
+			object.CanTouch = false
+			object.CanQuery = false
+
+		end
+	end
+
+	clone.Parent = WorldModel
+
+	AvatarClones[player] = clone
+end
+
+--==================================================
+-- Player setup
+--==================================================
+
+local function setupPlayer(player)
+
+	if player == LocalPlayer then
+		return
+	end
+
+	if player.Character then
+		task.defer(function()
+			createAvatar(player)
+		end)
+	end
+
+	player.CharacterAdded:Connect(function()
+		task.wait(0.15)
+		createAvatar(player)
+	end)
+end
+
+for _, player in ipairs(Players:GetPlayers()) do
+	setupPlayer(player)
+end
+
+Players.PlayerAdded:Connect(setupPlayer)
+
+Players.PlayerRemoving:Connect(function(player)
+	removeAvatar(player)
+end)
+
+--==================================================
+-- Synchronize viewport avatar
+--==================================================
+
+RunService.RenderStepped:Connect(function()
+
+	local Camera = workspace.CurrentCamera
+
+	if not Camera then
+		return
+	end
+
+	-- Match the player's camera.
+	ViewportCamera.CFrame = Camera.CFrame
+	ViewportCamera.FieldOfView = Camera.FieldOfView
+
+	for player, clone in pairs(AvatarClones) do
+
+		local character = player.Character
+
+		if not character or not clone or not clone.Parent then
+			continue
+		end
+
+		-- Calculate the transform relative to the real camera.
+		local cameraCFrame = Camera.CFrame
+
+		for _, original in ipairs(character:GetDescendants()) do
+
+			if not original:IsA("BasePart") then
+				continue
+			end
+
+			-- Find the matching object using its hierarchy.
+			local originalParent = original.Parent
+			local matchingPart = nil
+
+			if originalParent then
+
+				local cloneParent = clone:FindFirstChild(
+					originalParent.Name,
+					true
+				)
+
+				if cloneParent then
+					matchingPart = cloneParent:FindFirstChild(
+						original.Name
+					)
+				end
+
+			end
+
+			-- Fallback for parts that cannot be matched normally.
+			if not matchingPart then
+				matchingPart = clone:FindFirstChild(
+					original.Name,
+					true
+				)
+			end
+
+			if matchingPart and matchingPart:IsA("BasePart") then
+
+				-- Convert world position into camera-relative space.
+				local relativeCFrame =
+					cameraCFrame:ToObjectSpace(original.CFrame)
+
+				matchingPart.CFrame =
+					ViewportCamera.CFrame * relativeCFrame
+
+				matchingPart.Transparency =
+					original.Transparency
+
+			end
+		end
+	end
+end)
